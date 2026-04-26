@@ -1,7 +1,7 @@
 Alternative Compute Device Access
 ================
 Nicholas Cooley
-2026-04-24
+2026-04-26
 
 - [*2026 04 24*: Remote development
   notes](#2026-04-24-remote-development-notes)
@@ -28,13 +28,13 @@ which are up to you, but fine-grained, limited lifespan tokens are
 likely the right choice for most folks.
 
 Navigate the settings drop down menu: ![Navigation to PAT generation, pt
-1](img1):
+1](README_files/PAT_gen_pt1.png)
 
 Find the developer settings tab: ![Navigation to PAT generation, pt
-2](img2):
+2](README_files/PAT_gen_pt2.png)
 
 And choose the token options that are appropriate for you: ![Navigation
-to PAT generation, pt 3](img3):
+to PAT generation, pt 3](README_files/PAT_gen_pt3.png)
 
 With a PAT in hand, I can then spin up an RStudio server instance on a
 remote resource, log into it (with the appropriate port forwarding
@@ -51,16 +51,17 @@ home university resources](scripts/container_init_RHSwL.sh), and on
 NVIDIA’s brev resources.
 
 On my home resources this is pretty straightforward, I log in and call
-my script: ![login and script launch part 1](img4):
+my script: ![login and script launch part 1](README_files/SLURM_pt1.png)
 
 And I can check that that process is running successfully: ![login and
-script launch part 2](img5):
+script launch part 2](README_files/SLURM_pt2.png)
 
 Now, from my local machine, I need to enable port forwarding, directions
 for which can be found by cat-ing the `.log` file created by the script.
 
 Once I’ve enabled port forwarding and I can log in to the localhost port
-in my browser of choice: ![login and script launch part 3](img6):
+in my browser of choice: ![login and script launch part
+3](README_files/SLURM_pt3.png)
 
 On brev resources this process is a little different. The resource is
 already partitioned, so call our container through docker rather than
