@@ -6,6 +6,7 @@
 #SBATCH --output=devel_container.log
 
 ###### -- overhead notes and things -------------------------------------------
+# notes and things
 
 # brief description:
 # R(ed)H(at)w(ith)L(mod)_container_init.sh
