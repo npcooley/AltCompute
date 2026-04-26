@@ -28,11 +28,11 @@ which are up to you, but fine-grained, limited lifespan tokens are
 likely the right choice for most folks.
 
 Navigate the settings drop down menu:
-<img src="README_files/PAT_gen_pt1.png" style="width:50.0%"
+<img src="README_files/PAT_gen_pt1.png" style="width:25.0%"
 alt="Navigation to PAT generation, pt 1" />
 
 Find the developer settings tab:
-<img src="README_files/PAT_gen_pt2.png" style="width:50.0%"
+<img src="README_files/PAT_gen_pt2.png" style="width:25.0%"
 alt="Navigation to PAT generation, pt 2" />
 
 And choose the token options that are appropriate for you: ![Navigation
