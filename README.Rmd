@@ -21,7 +21,7 @@ An initial complication of this project is both designing for multiple OSs and o
 The process I use starts with setting up a github PAT, the details of which are up to you, but fine-grained, limited lifespan tokens are likely the right choice for most folks.
 
 Navigate the settings drop down menu:
-```{r, echo=FALSE, out.width="100%", fig.align='center'}
+```{r, echo=FALSE, fig.align='center'}
 # Set out.width to "100%" or NULL to use original size
 knitr::include_graphics("README_files/PAT_gen_pt1.png")
 ```
