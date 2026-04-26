@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+
+# R generated files
+*.Rproj
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# Build artifacts
+*.o
+*.so
+*.dll
+*.tar.gz
+src/*.o
+src/*.so
+src/*.dll
+
+# Documentation (if generated)
+/doc/
+/Meta/
+
+# Vignette outputs (if built)
+vignettes/*.html
+vignettes/*.pdf
+

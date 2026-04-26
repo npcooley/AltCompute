@@ -1,0 +1,386 @@
+#!/bin/sh
+# configure script for mac / linux
+
+# mac notes
+# Apple's Metal framework comes baked in to modern Macs
+# and
+# openCL is currently supported on modern Macs, but xcode and it's associated SDKs
+# are required: %xcode-select --install
+# if apple kills openCL, this script on the Darwin side will need to include:
+# 1 - a check for homebrew
+# 2 - a check for the homebrew headers
+# 3 - a check for a homebrew provided framework
+# more things ... maybe?
+
+# linux notes
+# i might need to build in some flexibility for using non-standard openCL
+# library and header locations, but for now just getting it working on a
+# standard installation is the goal
+
+# technically uname writes its output to the standard output without -s
+# but being explicit doesn't hurt
+op_sys=$(uname -s)
+
+# create our temp directory, and ensure it gets removed appropriately
+# regardless of how the script exits
+dir01=$(mktemp -d)
+trap 'rm -rf "${dir01}"' EXIT
+
+# this list will grow to include at the very least NVIDIA devices, but maybe
+# others depending on ambition and bandwidth
+# it's pretty costless to write these out before the if/else conditions, and it
+# makes it easier for me to keep track of things and organize them
+ocl_test="${dir01}/ocl_test.c"
+ocl_exec="${dir01}/ocl_test"
+metal_test="${dir01}/metal_test.m"
+metal_exec="${dir01}/metal_test"
+cuda_test="${dir01}/cuda_test.cu"
+cuda_exec="${dir01}/cuda_test"
+
+# use a heredoc to capture our testing scripts
+# << capture_this will perform shell expansion
+# << 'capture_this' will not perform shell expansion
+# preprocessor directives just need the '#' character to be the first non-whitespace character
+cat > "${ocl_test}" << 'capture_this'
+/* ============================================================================
+ * test for openCL platforms and devices
+ * return 0 if 1 or more devices are found
+ * return 1 if no devices are found
+ * 
+ * header guard reflects a dichotomy between Apple's deprecated, but
+ * still existent openCL framework, and Khronos' standard implementation
+ * of OpenCL
+ * ========================================================================= */
+
+#ifdef __APPLE__
+  #include <OpenCL/opencl.h>
+#else
+  #include <CL/cl.h>
+#endif
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void) {
+  // assign a cl unsigned int a name and zero,
+  // cast the result of clGetPlatformIDs()
+  // back to the assigned variable,
+  // if it remains zero, return with an exit code of 1
+  cl_uint num_platforms = 0;
+  clGetPlatformIDs(0, NULL, &num_platforms);
+  
+  // return a non-zero exit code just in case
+  if (num_platforms == 0) {
+      printf("No OpenCL platforms found\n");
+      return 1;
+  }
+  
+  // assign a pointer 'platforms' of type 'cl_platform_id'
+  // we assign as a pointer because we don't know the length ahead of time
+  cl_platform_id *platforms = calloc(num_platforms, sizeof(cl_platform_id));
+  clGetPlatformIDs(num_platforms, platforms, NULL);
+
+  for (cl_uint p = 0; p < num_platforms; p++) {
+      cl_uint num_devices = 0;
+      clGetDeviceIDs(platforms[p], CL_DEVICE_TYPE_ALL, 0, NULL, &num_devices);
+      if (num_devices == 0) {
+          printf("No devices on this platform\n");
+          continue;
+      }
+
+      cl_device_id *devices = calloc(num_devices, sizeof(cl_device_id));
+      clGetDeviceIDs(platforms[p], CL_DEVICE_TYPE_ALL, num_devices, devices, NULL);
+
+      for (cl_uint d = 0; d < num_devices; d++) {
+          char name[256] = {0};
+          cl_uint units = 0;
+          clGetDeviceInfo(devices[d], CL_DEVICE_NAME, sizeof(name), name, NULL);
+          clGetDeviceInfo(devices[d], CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(units), &units, NULL);
+          printf("OpenCL device: %s, compute units: %u\n", name, units);
+      }
+      free(devices);
+  }
+  free(platforms);
+  return 0;
+}
+capture_this
+
+cat > "${metal_test}" << 'capture_this'
+/* ============================================================================
+ * test for metal Framework on apple devices
+ * 
+ * obj-c implementation that can just be called immediately once it has been
+ * compiled, prints out some information about the device
+ *
+ * currently no fancy footwork required, because this should only be called
+ * on an Apple OS, where the situation should be pretty boring
+ * ========================================================================= */
+
+#import <Foundation/Foundation.h>
+#import <Metal/Metal.h>
+
+int main() {
+  // the @autoreleasepool is a tool for simplifying cleanup, if everything i
+  // create within the function needs to be released when the function ends,
+  // I just start up the @autoreleasepool right away, if things need to persist
+  // then they can't be created within the pool
+  @autoreleasepool {
+    NSArray<id<MTLDevice>> *devices = MTLCopyAllDevices();
+      
+      // its important that this happens inside the autoreleasepool, though
+      // it's still a little opaque to me as to why
+      if (devices.count == 0) {
+        printf("No Metal devices found\n");
+        return 1;
+      }
+        
+      printf("Found %lu Metal device(s)\n\n", (unsigned long)devices.count);
+        
+      for (int i = 0; i < devices.count; i++) {
+          id<MTLDevice> device = devices[i];
+          printf("Device %d: %s\n", i, [device.name UTF8String]);
+          printf("  Location: %s\n", device.location == MTLDeviceLocationBuiltIn ? "Built-in" : "External");
+          printf("  Low Power: %s\n", device.lowPower ? "Yes" : "No");
+          printf("  Headless: %s\n", device.headless ? "Yes" : "No");
+          printf("  Removable: %s\n", device.removable ? "Yes" : "No");
+          printf("  Max Threads Per Threadgroup: %lu\n", (unsigned long)device.maxThreadsPerThreadgroup.width);
+          printf("  Recommended Max Working Set Size: %.2f MB\n", 
+                 device.recommendedMaxWorkingSetSize / (1024.0 * 1024.0));
+          printf("  Threadgroup Width: %lu\n", [device maxThreadsPerThreadgroup].width);
+          printf("  Threadgroup Height: %lu\n", [device maxThreadsPerThreadgroup].height);
+          printf("  Threadgroup Depth: %lu\n", [device maxThreadsPerThreadgroup].depth);
+          printf("\n");
+      }
+  }
+  return 0;
+}
+capture_this
+
+cat > "${cuda_test}" << 'capture_this'
+/* ============================================================================
+ * test for NVIDIA CUDA devices
+ * return 0 if 1 or more devices are found
+ * return 1 if no devices are found
+ *
+ * requires the CUDA toolkit to be installed, specifically nvcc and the
+ * cuda_runtime.h header - typically found under /usr/local/cuda on Linux
+ * ========================================================================= */
+
+#include <cuda_runtime.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void) {
+    int num_devices = 0;
+    cudaError_t err = cudaGetDeviceCount(&num_devices);
+
+    if (err != cudaSuccess || num_devices == 0) {
+        printf("No CUDA devices found\n");
+        return 1;
+    }
+
+    printf("Found %d CUDA device(s)\n\n", num_devices);
+
+    for (int d = 0; d < num_devices; d++) {
+        struct cudaDeviceProp props;
+        cudaGetDeviceProperties(&props, d);
+        printf("Device %d: %s\n", d, props.name);
+        printf("  Compute Capability: %d.%d\n", props.major, props.minor);
+        printf("  Multiprocessors: %d\n", props.multiProcessorCount);
+        printf("  Global Memory: %.2f MB\n", props.totalGlobalMem / (1024.0 * 1024.0));
+        printf("  Max Threads Per Block: %d\n", props.maxThreadsPerBlock);
+        printf("  Warp Size: %d\n", props.warpSize);
+        printf("\n");
+    }
+    return 0;
+}
+capture_this
+
+if [ ${op_sys} = "Darwin" ]; then
+  echo "******"
+  echo "config detected macOS, testing:"
+  echo "  Metal"
+  echo "  OpenCL"
+  echo "******"
+  echo " "
+  # try and compile the ocl test script
+  clang "${ocl_test}" \
+    -framework OpenCL \
+    -o "${ocl_exec}" 2>/dev/null
+  compilation_result=$?
+  
+  # if the exit condition of compilation is zero, then compilation was a success
+  if [ ${compilation_result} -eq 0 ]; then
+    echo "OpenCL test script compiled without complaint."
+    "${ocl_exec}"
+    test_result=$?
+    
+    if [ ${test_result} -eq 0 ]; then
+      echo "OpenCL devices discovered."
+      echo " "
+      # make edits to makevars.in to compile ocl tooling
+    else
+      echo "OpenCL devices appear absent."
+      echo " "
+    fi
+    
+  else
+    echo "OpenCL test script failed to compile. Please check for OpenCL framework presence."
+    echo " "
+  fi
+  
+  # try and compile the Metal test script
+  clang "${metal_test}" \
+    -fobjc-arc \
+    -framework Metal \
+    -framework Foundation \
+    -o "${metal_exec}" 2>/dev/null
+  compilation_result=$?
+  
+  if [ ${compilation_result} -eq 0 ]; then
+    echo "Metal test compiled without complaint."
+    "${metal_exec}"
+    test_result=$?
+    
+    if [ "${test_result}" -eq 0 ]; then
+      echo "Metal devices discovered."
+      echo " "
+      # make edits to makevars.in to compile metal tooling
+    else
+      echo "Metal devices appear absent."
+      echo " "
+    fi
+    
+  else
+    echo "Metal test script failed to compile. Please contact the maintainer!"
+    echo " "
+  fi
+  # end of Darwin checks
+  echo "******"
+  echo "end darwin configuration checks"
+  echo "******"
+else
+  echo "******"
+  echo "config did not detect macOS, assuming a Linux distro, testing:"
+  echo "  CUDA"
+  echo "  OpenCL"
+  echo "******"
+  echo " "
+  
+  # for the CUDA test to work, I need:
+  # nvcc to be in the PATH
+  # cuda_runtime.h to be accessible to nvcc
+  # libcudart must be able to be found at runtime - it must be present in LD_LIBRARY_PATH
+  # the device driver must be loaded and functional - nvcc can compile without it
+  # but the compiled test binary cannot run without it
+  # these need to happen sequentially-ish
+  echo "Beginning CUDA tests..."
+  echo " "
+  command -v nvcc > /dev/null 2>&1
+  nvcc_present=$?
+  
+  if [ ${nvcc_present} -eq 0 ]; then
+    echo "nvcc found at $(command -v nvcc)"
+    
+    # try and compile the CUDA test script
+    nvcc "${cuda_test}" \
+      -o "${cuda_exec}" 2>"${dir01}/cuda_compile_err"
+    compilation_result=$?
+
+    if [ ${compilation_result} -eq 0 ]; then
+      echo "CUDA test script compiled without complaint."
+      
+      # run ldd and capture its output
+      ldd "${cuda_exec}" > "${dir01}/cuda_ldd_out" 2>/dev/null
+      ldd_result=$?
+      
+      if [ ${ldd_result} -eq 0 ]; then
+        
+        grep -q "libcudart" "${dir01}/cuda_ldd_out"
+        parent_ldd_check=$?
+        if [ ${parent_ldd_check} -eq 0 ]; then
+          
+          grep "libcudart" "${dir01}/cuda_ldd_out" | grep -q "not found"
+          child_ldd_check=$?
+          
+          # this is the only place in the chain where success of the condition
+          # is the negative case!
+          if [ ${child_ldd_check} -ne 0 ]; then
+            echo "libcudart found by dynamic linker, attempting to run..."
+            # now we can test the executable
+            "${cuda_exec}"
+            test_result=$?
+
+            if [ ${test_result} -eq 0 ]; then
+              echo "CUDA devices discovered."
+              echo " "
+              # make edits to makevars.in to compile CUDA tooling
+            else
+              echo "CUDA devices appear absent."
+              echo " "
+            fi
+            
+          else
+            echo "binary is not linked to libcudart appropriately"
+            echo "is the CUDA lib64 directory in the LD_LIBRARY_PATH?"
+            cat "${dir01}/cuda_ldd_out"
+            echo " "
+          fi
+          # end ldd check child
+          
+        else
+          echo "libcudart is not referenced in the binary, this condition is unexpected"
+          echo " "
+        fi
+        # end ldd check parent
+      else
+        echo "ldd failed to inspect the compiled binary, this condition is unexpected"
+        echo " "
+      fi
+      # end check for dynamic linker presence
+
+    else
+      echo "nvcc found but compilation failed — cuda_runtime.h may be missing or inaccessible."
+      echo " "
+      echo "Compiler errors:"
+      cat "${dir01}/cuda_compile_err"
+      echo " "
+    fi
+    # end of check for script compilation
+    
+  else
+    echo "nvcc appears absent, skipping testing"
+    echo " "
+  fi
+  # end of check for nvcc
+  
+  # try and compile the ocl test script
+  # assume posix standard setup
+  cc "${ocl_test}" \
+    -lOpenCL \
+    -o "${ocl_exec}" 2>/dev/null
+  compilation_result=$?
+  
+  # if the exit condition of compilation is zero, then compilation was a success
+  if [ ${compilation_result} -eq 0 ]; then
+    echo "OpenCL test script compiled without complaint."
+    "${ocl_exec}"
+    test_result=$?
+    
+    if [ ${test_result} -eq 0 ]; then
+      echo "OpenCL devices discovered."
+      echo " "
+      # make edits to makevars.in to compile ocl tooling
+    else
+      echo "OpenCL devices appear absent."
+      echo " "
+    fi
+    
+  else
+    echo "OpenCL test script failed to compile. Please check for OpenCL framework presence."
+    echo " "
+  fi
+  # end of linux checks
+  echo "******"
+  echo "end linux configuration checks"
+  echo "******"
+fi

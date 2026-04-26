@@ -1,0 +1,30 @@
+Package: AltCompute
+Type: Package
+Title: Alternative Compute Device Access
+Version: 0.0.1
+Authors@R: c(
+    person("Nicholas",
+            "Cooley",
+            email = "npcooley@gmail.com",
+            role = c("aut", "cre"),
+            comment = c(ORCID = "0000-0002-6029-304X"))
+    )
+Description: Infrastructure for accessing alternative compute devices and frameworks.
+Imports: methods
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
+License: MIT + file LICENSE
+SystemRequirements: OpenCL
+Depends: R (>= 4.5.0)
+OS_type: unix
+NeedsCompilation: yes
+ByteCompile: true
+Encoding: UTF-8
+Author: Nicholas Cooley [aut, cre] (ORCID:
+    <https://orcid.org/0000-0002-6029-304X>)
+Maintainer: Nicholas Cooley <npcooley@gmail.com>
+
+
+
