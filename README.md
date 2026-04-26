@@ -27,8 +27,8 @@ The process I use starts with setting up a github PAT, the details of
 which are up to you, but fine-grained, limited lifespan tokens are
 likely the right choice for most folks.
 
-Navigate the settings drop down menu: ![Navigation to PAT generation, pt
-1](README_files/PAT_gen_pt1.png)
+Navigate the settings drop down menu:
+<img src="README_files/PAT_gen_pt1.png" width="100%" style="display: block; margin: auto;" />
 
 Find the developer settings tab: ![Navigation to PAT generation, pt
 2](README_files/PAT_gen_pt2.png)
