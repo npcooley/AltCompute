@@ -21,13 +21,10 @@ An initial complication of this project is both designing for multiple OSs and o
 The process I use starts with setting up a github PAT, the details of which are up to you, but fine-grained, limited lifespan tokens are likely the right choice for most folks.
 
 Navigate the settings drop down menu:
-```{r, echo=FALSE, fig.align='center'}
-# Set out.width to "100%" or NULL to use original size
-knitr::include_graphics("README_files/PAT_gen_pt1.png")
-```
+![Navigation to PAT generation, pt 1](README_files/PAT_gen_pt1.png){width=50%}
 
 Find the developer settings tab:
-![Navigation to PAT generation, pt 2](README_files/PAT_gen_pt2.png)
+![Navigation to PAT generation, pt 2](README_files/PAT_gen_pt2.png){width=50%}
 
 And choose the token options that are appropriate for you:
 ![Navigation to PAT generation, pt 3](README_files/PAT_gen_pt3.png)
