@@ -242,6 +242,14 @@ fi
 
 host_gcc_home=$(dirname ${host_gcc_bin})
 
+# capture gcc libs but exclude lib64 which contains libstdc++.so.6
+# that would conflict with the container's own libstdc++
+avl_gcc_libs=$(echo "${host_gcc_libs}" | \
+  tr ':' '\n' | \
+  grep -v 'lib64' | \
+  tr '\n' ':' | \
+  sed 's/:$//')
+
 
 # working directory - where your SIF will be cached and R libraries stored
 RSTUDIO_CWD=$HOME
@@ -284,8 +292,9 @@ cat > ${RSTUDIO_TMP}/rsession.sh <<capture_this
 #!/bin/sh
 export OMP_NUM_THREADS=${SLURM_JOB_CPUS_PER_NODE}
 export R_LIBS_USER=/tmp/R_libs
-export PATH="${host_gcc_home}/bin:${CUDA_HOME}/bin:\${PATH}"
-export LD_LIBRARY_PATH="${host_gcc_libs}:${avl_cuda_libs}:\${LD_LIBRARY_PATH}"
+export PATH="${host_gcc_bin}/bin:${CUDA_HOME}/bin:\${PATH}"
+export LD_LIBRARY_PATH="${avl_gcc_libs}:${avl_cuda_libs}:\${LD_LIBRARY_PATH}"
+export NVCC_CCBIN="${host_gcc_bin}/gcc"
 exec /usr/lib/rstudio-server/bin/rsession "\${@}"
 capture_this
 
