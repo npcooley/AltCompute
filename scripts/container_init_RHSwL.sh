@@ -25,6 +25,8 @@
 # nuke tmp files and directories on exit
 # hypothetically, when the job is killed by slurm, the port will be released
 # notes cannot be placed above the sbatch block!
+# the container needs to inherit the parts of the host environment that are
+# consequential to the cuda installation, this includes the host compiler
 
 # dependencies / requirements:
 # Lmod ................ https://lmod.readthedocs.io/en/latest/010_user.html
@@ -176,6 +178,71 @@ fi
 
 ###### -- directories and apptainer args --------------------------------------
 
+# CUDA bindings that need to be explicit:
+# translate colon to new line
+# find cuda case insensitive
+# translate new lines to colons
+# drop last colon
+avl_cuda_libs=$(echo $LD_LIBRARY_PATH | \
+  tr ':' '\n' | \
+  grep -i 'cuda' | \
+  tr '\n' ':' | \
+  sed 's/:$//')
+  
+# there should be two cuda lib locations, a driver side, and a toolkit side
+# check for them, error if the collection attempt is empty
+if [ -z "${avl_cuda_libs}" ]; then
+  echo "======"
+  echo "no CUDA entries found in LD_LIBRARY_PATH — please check module loading..."
+  echo "======"
+  exit 1
+else
+  echo "======"
+  echo "CUDA library paths:"
+  echo "${avl_cuda_libs}" | tr ':' '\n'
+  echo "======"
+fi
+
+# apptainer *should* append this to the container's LD_LIBRARY_PATH
+export APPTAINERENV_LD_LIBRARY_PATH=${avl_cuda_libs}
+
+# this variable may not be supported on all versions of the apptainer module?
+export APPTAINERENV_APPEND_PATH="${CUDA_HOME}/bin"
+
+host_gcc_libs=$(echo $LD_LIBRARY_PATH | \
+  tr ':' '\n' | \
+  grep -i 'gcc' | \
+  tr '\n' ':' | \
+  sed 's/:$//')
+
+if [ -z "${host_gcc_libs}" ]; then
+  echo "======"
+  echo "no GCC entries found in LD_LIBRARY_PATH — please check module loading..."
+  echo "======"
+  exit 1
+else
+  echo "======"
+  echo "GCC library paths:"
+  echo "${host_gcc_libs}" | tr ':' '\n'
+  echo "======"
+fi
+
+host_gcc_bin=$(dirname $(which gcc))
+
+if [ -z "${host_gcc_bin}" ]; then
+  echo "======"
+  echo "gcc bin appears absent, please echo the host's PATH"
+  echo "======"
+  exit 1
+else
+  echo "======"
+  echo "gcc found: $(${host_gcc_bin}/gcc | head -n 1)"
+  echo "======"
+fi
+
+host_gcc_home=$(dirname ${host_gcc_bin})
+
+
 # working directory - where your SIF will be cached and R libraries stored
 RSTUDIO_CWD=$HOME
 
@@ -217,6 +284,8 @@ cat > ${RSTUDIO_TMP}/rsession.sh <<capture_this
 #!/bin/sh
 export OMP_NUM_THREADS=${SLURM_JOB_CPUS_PER_NODE}
 export R_LIBS_USER=/tmp/R_libs
+export PATH="${host_gcc_home}/bin:${CUDA_HOME}/bin:\${PATH}"
+export LD_LIBRARY_PATH="${host_gcc_libs}:${avl_cuda_libs}:\${LD_LIBRARY_PATH}"
 exec /usr/lib/rstudio-server/bin/rsession "\${@}"
 capture_this
 
@@ -231,7 +300,8 @@ ${RSTUDIO_TMP}/var/log/rstudio:/var/log/rstudio,\
 ${RSTUDIO_TMP}/database.conf:/etc/rstudio/database.conf,\
 ${RSTUDIO_TMP}/rsession.sh:/etc/rstudio/rsession.sh,\
 ${RSTUDIO_TMP}/logging.conf:/etc/rstudio/logging.conf,\
-$CUDA_HOME:$CUDA_HOME"
+${host_gcc_home}:${host_gcc_home},\
+${CUDA_HOME}:${CUDA_HOME}"
 
 # environment variables inside container
 export APPTAINERENV_RSTUDIO_SESSION_TIMEOUT=0

@@ -328,8 +328,28 @@ else
           # end ldd check child
           
         else
-          echo "libcudart is not referenced in the binary, this condition is unexpected"
-          echo " "
+          # libcudart is absent from ldd output — check whether nvcc linked it
+          # statically, which is the default in CUDA 13.x and some earlier versions
+          nm "${cuda_exec}" 2>/dev/null | grep -q "cudaGetDeviceCount"
+          static_link_check=$?
+
+          if [ ${static_link_check} -eq 0 ]; then
+            echo "libcudart linked statically (CUDA 13.x default), attempting to run..."
+            "${cuda_exec}"
+            test_result=$?
+
+            if [ ${test_result} -eq 0 ]; then
+              echo "CUDA devices discovered."
+              echo " "
+              # make edits to makevars.in to compile CUDA tooling
+            else
+              echo "CUDA devices appear absent."
+              echo " "
+            fi
+          else
+            echo "libcudart is not referenced in the binary, this condition is unexpected"
+            echo " "
+          fi
         fi
         # end ldd check parent
       else
