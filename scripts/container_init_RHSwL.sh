@@ -298,6 +298,9 @@ export NVCC_CCBIN="${host_gcc_bin}/gcc"
 exec /usr/lib/rstudio-server/bin/rsession "\${@}"
 capture_this
 
+# not sure what the right place for this is really?
+export APPTAINERENV_NVCC_CCBIN="${host_gcc_bin}/gcc"
+
 chmod +x ${RSTUDIO_TMP}/rsession.sh
 
 # bind mounts
