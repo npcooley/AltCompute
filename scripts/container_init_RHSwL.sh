@@ -294,7 +294,7 @@ export OMP_NUM_THREADS=${SLURM_JOB_CPUS_PER_NODE}
 export R_LIBS_USER=/tmp/R_libs
 export PATH="${host_gcc_bin}:${CUDA_HOME}/bin:\${PATH}"
 export LD_LIBRARY_PATH="${avl_gcc_libs}:${avl_cuda_libs}:\${LD_LIBRARY_PATH}"
-export NVCC_CCBIN="${host_gcc_bin}"
+export NVCC_CCBIN="${host_gcc_bin}/gcc"
 exec /usr/lib/rstudio-server/bin/rsession "\${@}"
 capture_this
 
