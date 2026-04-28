@@ -294,12 +294,13 @@ export OMP_NUM_THREADS=${SLURM_JOB_CPUS_PER_NODE}
 export R_LIBS_USER=/tmp/R_libs
 export PATH="${host_gcc_bin}:${CUDA_HOME}/bin:\${PATH}"
 export LD_LIBRARY_PATH="${avl_gcc_libs}:${avl_cuda_libs}:\${LD_LIBRARY_PATH}"
+export AC_ALT_COMPILER="${host_gcc_bin}/g++"
 export NVCC_CCBIN="${host_gcc_bin}/gcc"
 exec /usr/lib/rstudio-server/bin/rsession "\${@}"
 capture_this
 
 # not sure what the right place for this is really?
-export APPTAINERENV_NVCC_CCBIN="${host_gcc_bin}/gcc"
+export APPTAINERENV_AC_ALT_COMPILER="${host_gcc_bin}/g++"
 
 chmod +x ${RSTUDIO_TMP}/rsession.sh
 

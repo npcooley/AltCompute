@@ -17,6 +17,12 @@
 # library and header locations, but for now just getting it working on a
 # standard installation is the goal
 
+# respecting a non-default compiler:
+# if cuda needs a deprecated or different compiler from the default
+# the environment variable AC_ALT_COMPILER will be queried and passed to
+# nvcc's `--compiler_bindir` if it is present
+alt_compiler=${AC_ALT_COMPILER:-""}
+
 # technically uname writes its output to the standard output without -s
 # but being explicit doesn't hurt
 op_sys=$(uname -s)
@@ -283,6 +289,7 @@ else
     
     # try and compile the CUDA test script
     nvcc "${cuda_test}" \
+      ${alt_compiler:+--compiler-bindir "${alt_compiler}"} \
       -o "${cuda_exec}" 2>"${dir01}/cuda_compile_err"
     compilation_result=$?
 
