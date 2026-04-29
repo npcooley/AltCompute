@@ -23,6 +23,14 @@
 # nvcc's `--compiler_bindir` if it is present
 alt_compiler=${AC_ALT_COMPILER:-""}
 
+if [ - z ${alt_compiler} ]; then
+  echo "======"
+  echo "an alternative compiler appears to be specified"
+  echo "it is currently only invoked for nvcc and cuda"
+  echo "alt compiler: ${alt_compiler}"
+  echo "======"
+fi
+
 # technically uname writes its output to the standard output without -s
 # but being explicit doesn't hurt
 op_sys=$(uname -s)

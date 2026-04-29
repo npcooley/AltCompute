@@ -167,6 +167,7 @@ if [ $? -ne 0 ]; then
   echo " "
   exit 1
 fi
+
 load_target_module ${mod_avl_tmp} "apptainer/[0-9]+\.[0-9]+\.[0-9]+" "${apptainer_module}"
 if [ $? -ne 0 ]; then
   echo "======"
@@ -209,47 +210,31 @@ export APPTAINERENV_LD_LIBRARY_PATH=${avl_cuda_libs}
 # this variable may not be supported on all versions of the apptainer module?
 export APPTAINERENV_APPEND_PATH="${CUDA_HOME}/bin"
 
-host_gcc_libs=$(echo $LD_LIBRARY_PATH | \
-  tr ':' '\n' | \
-  grep -i 'gcc' | \
-  tr '\n' ':' | \
-  sed 's/:$//')
+# cuda version interrogation for compiler linking
+cuda_version=$(nvcc --version | grep -oE "release [0-9]+\.[0-9]+" | grep -oE "[0-9]+\.[0-9]+")
+cuda_major=$(echo "${cuda_version}" | cut -d'.' -f1)
+cuda_minor=$(echo "${cuda_version}" | cut -d'.' -f2)
 
-if [ -z "${host_gcc_libs}" ]; then
-  echo "======"
-  echo "no GCC entries found in LD_LIBRARY_PATH — please check module loading..."
-  echo "======"
-  exit 1
+echo "======"
+echo "host CUDA toolkit version: ${cuda_version}"
+echo "======"
+
+# CUDA 11.x requires gcc <= 11
+# CUDA 12.0-12.1 requires gcc <= 12
+# CUDA 12.2+ requires gcc <= 13
+if [ "${cuda_major}" -eq 11 ]; then
+  required_gcc="11"
+elif [ "${cuda_major}" -eq 12 ] && [ "${cuda_minor}" -le 1 ]; then
+  required_gcc="12"
 else
-  echo "======"
-  echo "GCC library paths:"
-  echo "${host_gcc_libs}" | tr ':' '\n'
-  echo "======"
+  required_gcc="13"
 fi
 
-host_gcc_bin=$(dirname $(which gcc))
+echo "======"
+echo "CUDA ${cuda_version} requires gcc <= ${required_gcc}"
+echo "======"
 
-if [ -z "${host_gcc_bin}" ]; then
-  echo "======"
-  echo "gcc bin appears absent, please echo the host's PATH"
-  echo "======"
-  exit 1
-else
-  echo "======"
-  echo "gcc found: $(${host_gcc_bin}/gcc --version | head -n 1)"
-  echo "======"
-fi
-
-host_gcc_home=$(dirname ${host_gcc_bin})
-
-# capture gcc libs but exclude lib64 which contains libstdc++.so.6
-# that would conflict with the container's own libstdc++
-avl_gcc_libs=$(echo "${host_gcc_libs}" | \
-  tr ':' '\n' | \
-  grep -v 'lib64' | \
-  tr '\n' ':' | \
-  sed 's/:$//')
-
+export APPTAINERENV_AC_ALT_COMPILER="/usr/bin/g++-${required_gcc}"
 
 # working directory - where your SIF will be cached and R libraries stored
 RSTUDIO_CWD=$HOME
@@ -292,15 +277,11 @@ cat > ${RSTUDIO_TMP}/rsession.sh <<capture_this
 #!/bin/sh
 export OMP_NUM_THREADS=${SLURM_JOB_CPUS_PER_NODE}
 export R_LIBS_USER=/tmp/R_libs
-export PATH="${host_gcc_bin}:${CUDA_HOME}/bin:\${PATH}"
 export LD_LIBRARY_PATH="${avl_gcc_libs}:${avl_cuda_libs}:\${LD_LIBRARY_PATH}"
-export AC_ALT_COMPILER="${host_gcc_bin}/g++"
+export AC_ALT_COMPILER="/usr/bin/g++-${required_gcc}"
 export NVCC_CCBIN="${host_gcc_bin}/gcc"
 exec /usr/lib/rstudio-server/bin/rsession "\${@}"
 capture_this
-
-# not sure what the right place for this is really?
-export APPTAINERENV_AC_ALT_COMPILER="${host_gcc_bin}/g++"
 
 chmod +x ${RSTUDIO_TMP}/rsession.sh
 
