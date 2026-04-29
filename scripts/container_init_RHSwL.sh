@@ -279,7 +279,6 @@ export OMP_NUM_THREADS=${SLURM_JOB_CPUS_PER_NODE}
 export R_LIBS_USER=/tmp/R_libs
 export LD_LIBRARY_PATH="${avl_gcc_libs}:${avl_cuda_libs}:\${LD_LIBRARY_PATH}"
 export AC_ALT_COMPILER="/usr/bin/g++-${required_gcc}"
-export NVCC_CCBIN="${host_gcc_bin}/gcc"
 exec /usr/lib/rstudio-server/bin/rsession "\${@}"
 capture_this
 
@@ -294,8 +293,21 @@ ${RSTUDIO_TMP}/var/log/rstudio:/var/log/rstudio,\
 ${RSTUDIO_TMP}/database.conf:/etc/rstudio/database.conf,\
 ${RSTUDIO_TMP}/rsession.sh:/etc/rstudio/rsession.sh,\
 ${RSTUDIO_TMP}/logging.conf:/etc/rstudio/logging.conf,\
-${host_gcc_home}:${host_gcc_home},\
 ${CUDA_HOME}:${CUDA_HOME}"
+
+if [ -d "/etc/OpenCL/vendors" ]; then
+
+  echo "======"
+  echo "OpenCL vendor directory found, binding into container..."
+  echo "======"
+  export APPTAINER_BIND="${APPTAINER_BIND},\
+/etc/OpenCL/vendors:/etc/OpenCL/vendors"
+
+else
+  echo "======"
+  echo "OpenCL vendor directory not found!"
+  echo "======"
+fi
 
 # environment variables inside container
 export APPTAINERENV_RSTUDIO_SESSION_TIMEOUT=0

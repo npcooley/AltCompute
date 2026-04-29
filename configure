@@ -23,10 +23,11 @@
 # nvcc's `--compiler_bindir` if it is present
 alt_compiler=${AC_ALT_COMPILER:-""}
 
-if [ - z ${alt_compiler} ]; then
+# if our script variable is not empty...
+if [ ! -z ${alt_compiler} ]; then
   echo "======"
   echo "an alternative compiler appears to be specified"
-  echo "it is currently only invoked for nvcc and cuda"
+  echo "this environment variable is currently only invoked for nvcc"
   echo "alt compiler: ${alt_compiler}"
   echo "======"
 fi
@@ -349,7 +350,7 @@ else
           static_link_check=$?
 
           if [ ${static_link_check} -eq 0 ]; then
-            echo "libcudart linked statically (CUDA 13.x default), attempting to run..."
+            echo "libcudart linked statically..."
             "${cuda_exec}"
             test_result=$?
 
