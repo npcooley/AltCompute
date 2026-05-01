@@ -37,11 +37,12 @@
 # use $parameter if it is present, if it is not, use default
 container_name="${1:-""}"
 cuda_path_override="${2:-""}"
+ocl_path_override="${3:-""}"
 
 if [ -z "${container_name}" ]; then
   echo "======"
   echo "error: container name is required as the first argument"
-  echo "usage: bash $(basename "${0}") <container_name> [cuda_path]"
+  echo "usage: bash $(basename "${0}") <container_name> [optional_cuda_path]"
   echo "======"
   exit 1
 fi
@@ -60,40 +61,49 @@ check_host_dependency() {
   return 0
 }
 
-# cuda check (explicit to cuda, not generalized)
+# generic tool check
 # prefer an explicit override, otherwise probe the canonical symlink,
 # then fall back to finding the highest versioned directory under /usr/local
-find_cuda_path() {
-  local override="${1}"
-
-  if [ -n "${override}" ]; then
-    if [ -d "${override}" ]; then
-      echo "${override}"
+# invocation:
+# first two variables set in this script, last can be set by user supplied
+# var *to* this script
+# pathfinder_best_attempt <my_path> <assumed altform> <user_supplied_path>
+# i.e.
+# pathfinder_best_attempt /usr/local/cuda cuda-* "${my_var_that_can_be_empty}"
+pathfinder_best_attempt() {
+  local assumed_canon="$1"
+  local alternative_pattern="$2"
+  local user_override="$3"
+  local pattern_found
+  
+  if [ -n "${user_override}" ]; then
+    if [ -d "${user_override}" ]; then
+      echo "${user_override}"
       return 0
     else
-      echo "  ======"
-      echo "  warning: supplied cuda path '${override}' does not exist, falling back to auto-detection"
-      echo "  ======"
+      echo "warning: a user override was supplied but does not exist" >&2
     fi
   fi
-
-  # canonical symlink is the tidiest case
-  if [ -d "/usr/local/cuda" ]; then
-    echo "/usr/local/cuda"
+  
+  if [ -d "${assumed_canon}" ]; then
+    echo "${assumed_canon}"
     return 0
   fi
-
-  # no symlink; find the most recent versioned directory
-  local best_path
-  best_path=$(find /usr/local -maxdepth 1 -type d -name "cuda-*" 2>/dev/null \
-    | sort -V | tail -1)
-
-  if [ -n "${best_path}" ]; then
-    echo "${best_path}"
+  
+  pattern_found=$(find /usr/local \
+    -maxdepth 1 \
+    -type d \
+    -name "${alternative_pattern}" \
+    2>/dev/null \
+    | sort -V \
+    | tail -1)
+  
+  if [ -n "${pattern_found}" ]; then
+    echo "${pattern_found}"
     return 0
   fi
-
-  # nothing found
+  
+  # if we got here, the directory was not found
   return 1
 }
 
@@ -119,49 +129,45 @@ find_free_port() {
 }
 
 
-###### -- overhead checks -----------------------------------------------------
+###### -- overhead checks and host interrogation ------------------------------
 
 check_host_dependency "docker"   || exit 1
 check_host_dependency "ss"       || exit 1
 check_host_dependency "openssl"  || exit 1
 
-echo "======"
-echo "locating CUDA toolkit on host..."
-cuda_host_path=$(find_cuda_path "${cuda_path_override}")
+
+cuda_host_path=$(pathfinder_best_attempt /usr/local/cuda cuda-* "${cuda_path_override}")
 cuda_found=$?
 
-if [ ${cuda_found} -ne 0 ]; then
-  echo "  warning: no CUDA toolkit directory found on this host"
-  echo "  nvcc will not be available inside the container"
-  echo "  if this is unexpected, re-run with an explicit path as the second argument"
-  echo "  continuing without CUDA bind mount..."
+if [ "${cuda_found}" -ne 0 ]; then
   echo "======"
-  cuda_bind_mount=""
-  cuda_env_path=""
-  cuda_env_ldpath=""
+  echo "no CUDA toolkit was discovered, please check the host environment"
+  echo "======"
+  exit 1
 else
-  echo "  found CUDA toolkit at: ${cuda_host_path}"
   echo "======"
-  cuda_bind_mount="-v ${cuda_host_path}:/usr/local/cuda:ro"
+  echo "CUDA toolkit implied to be at ${cuda_host_path} on the host"
+  echo "======"
+  # bind the toolkit from the resource instance to the container instance
+  cuda_toolkit_bind_mount="-v ${cuda_host_path}:/usr/local/cuda:ro"
+  # make changes to the container instance's environment variables
   cuda_env_path="-e PATH=/usr/local/cuda/bin:\${PATH}"
   cuda_env_ldpath="-e LD_LIBRARY_PATH=/usr/local/cuda/lib64:\${LD_LIBRARY_PATH}"
 fi
 
-# opencl's .icd files ...
-echo "======"
-echo "checking for OpenCL ICD files on host..."
-ocl_icd_host_path="/etc/OpenCL/vendors"
+ocl_host_path=$(pathfinder_best_attempt /etc/OpenCL/vendors OpenCL "${ocl_path_override}")
+ocl_found=$?
 
-if [ -d "${ocl_icd_host_path}" ]; then
-  echo "  found OpenCL ICD directory at: ${ocl_icd_host_path}"
+if [ "${ocl_found}" -ne 0 ]; then
   echo "======"
-  ocl_icd_bind_mount="-v ${ocl_icd_host_path}:${ocl_icd_host_path}"
+  echo "OpenCL vendor info not found, OpenCL will not be operable in the container"
+  echo "======"
+  ocl_bind_mount=""
 else
-  echo "  warning: ${ocl_icd_host_path} not found on this host"
-  echo "  OpenCL platform discovery may fail inside the container"
-  echo "  continuing without OpenCL ICD bind mount..."
   echo "======"
-  ocl_icd_bind_mount=""
+  echo "OpenCL .icd files found"
+  echo "======"
+  ocl_bind_mount="-v ${ocl_host_path}:/etc/OpenCL/vendors:ro"
 fi
 
 # get a port
