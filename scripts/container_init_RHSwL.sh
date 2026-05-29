@@ -204,11 +204,26 @@ else
   echo "======"
 fi
 
+avl_cuda_home=$(dirname $(dirname $(which nvcc)))
+
+if [ -z "${avl_cuda_home}" ]; then
+  echo "======"
+  echo "no CUDA home found — please check module loading..."
+  echo "======"
+  exit 1
+else
+  echo "======"
+  echo "CUDA home:"
+  echo "${avl_cuda_home}"
+  echo "======"
+fi
+
 # apptainer *should* append this to the container's LD_LIBRARY_PATH
 export APPTAINERENV_LD_LIBRARY_PATH=${avl_cuda_libs}
 
 # this variable may not be supported on all versions of the apptainer module?
 export APPTAINERENV_APPEND_PATH="${CUDA_HOME}/bin"
+export APPTAINERENV_CUDA_HOME="${CUDA_HOME}"
 
 # cuda version interrogation for compiler linking
 cuda_version=$(nvcc --version | grep -oE "release [0-9]+\.[0-9]+" | grep -oE "[0-9]+\.[0-9]+")
@@ -277,7 +292,8 @@ cat > ${RSTUDIO_TMP}/rsession.sh <<capture_this
 #!/bin/sh
 export OMP_NUM_THREADS=${SLURM_JOB_CPUS_PER_NODE}
 export R_LIBS_USER=/tmp/R_libs
-export LD_LIBRARY_PATH="${avl_gcc_libs}:${avl_cuda_libs}:\${LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="${avl_cuda_libs}:\${LD_LIBRARY_PATH}"
+export CUDA_HOME="${avl_cuda_home}"
 export AC_ALT_COMPILER="/usr/bin/g++-${required_gcc}"
 exec /usr/lib/rstudio-server/bin/rsession "\${@}"
 capture_this
@@ -312,7 +328,7 @@ fi
 # environment variables inside container
 export APPTAINERENV_RSTUDIO_SESSION_TIMEOUT=0
 export APPTAINERENV_USER=$(id -un)
-export APPTAINERENV_PASSWORD=$(openssl rand -base64 15)
+export APPTAINERENV_PASSWORD=$(openssl rand -hex 5)
 
 # test call to rserver
 # RSERVER_PATH=$(apptainer exec --cleanenv \
@@ -412,8 +428,7 @@ apptainer exec --cleanenv \
     --www-port=${avl_port} \
     --auth-none=0 \
     --auth-pam-helper-path=pam-helper \
-    --auth-stay-signed-in-days=0 \
-    --auth-timeout-minutes=0 \
+    --auth-stay-signed-in-days=1 \
     --rsession-path=/etc/rstudio/rsession.sh \
     --server-user=${APPTAINERENV_USER}
 

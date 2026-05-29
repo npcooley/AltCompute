@@ -14,6 +14,27 @@ output:
 
 While this package is under construction this README will serve as a set of notes.
 
+# *2026 05 01*: Design notes and lessons
+
+The process of writing and testing [ACFmetal](https://github.com/npcooley/ACFmetal) lead to a considerable number of realizations and lessons about what this task (bringing access to GPU compute into R) will entail. What processes should be done in R and exposed to the user, and which should be kept in C are design choices with significant consequences.
+
+Ensuring that the use cases for this package and it's capabilities are clearly defined and communicated are paramount for uptake by users and developers. Additionally, if the capabilities that the package delivers are not maintainable, users will not be able to rely on it as an optional piece of infrastructure.
+
+Capabilities can be divided into roughly three categories:
+
+## Framework-side kernel function compilation and management
+
+These functions are going to be mostly lightweight R based tools that interact with the kernel function compilation and library management tooling provided by the framework. A user brings a kernel function, and these serve as a reliable interaction layer to programmatically ensure that this kernel function is compiled and made available for downstream use. On the compilation side this looks mostly like calling system tools and managing temp files. On the downstream use side, this is a little more complicated and will involve interaction with the framework's API to ensure the API connects correctly to the compiled kernel function when creating a compute pipeline / queue.
+
+In the short term, this API side will likely focus on portable user supplied kernel functions. The major design concern here is ensuring that interactions with these functions and their produced objects is not opaque. Functions that produce a `NULL` (or a filepath character with no associated R object) and a message should clearly communicate that, while functions that return an external pointer should communicate clearly what the pointer is for.
+
+## Device discovery, communication, and interaction
+
+This is the largest and least coherent category of functions. Only device discovery functions should be exposed with R wrappers, as these should be available for querying capabilities on package startup and generally. 
+
+## Runner functions and user facing execution tools
+
+
 # *2026 04 24*: Remote development notes
 
 An initial complication of this project is both designing for multiple OSs and only having a single local development environment (a Mac M4). This means that being able to test and work on a remote resource is a hurdle that must be cleared. I've tried to create a system for enabling development on both the university compute cluster I have access to, and NVIDIA brev resources.
