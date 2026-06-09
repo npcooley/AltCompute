@@ -1,6 +1,11 @@
 #!/bin/sh
 # configure script for mac / linux
 
+# general notes:
+# ingest and respect $CUDA_HOME
+# ingest and respect some opencl environment variables that point to
+# headers and .icd file(s) infer them from reasonable defaults if absent
+
 # mac notes
 # Apple's Metal framework comes baked in to modern Macs
 # and
